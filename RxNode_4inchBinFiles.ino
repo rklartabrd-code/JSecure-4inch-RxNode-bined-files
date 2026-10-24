@@ -23,6 +23,8 @@
 
 #define TFT_BLACK TFT_PURPLE
 #define BOOT_BUTTON 0
+#define USING_BINS  0
+
 
 #ifndef SD_CS
 #define SD_CS 5 // REPLACE with your working 4-inch CYD SD chip select
@@ -183,14 +185,17 @@ static void drawStatus(float volts) {
 
 static void RxTask(void *arg) {
   JpegMessage msg;
+  char filename[32];
+  int bin = 1;
+  bool fyleOpen = 0;
 
-#if 1
+#if USING_BINS
   // open the file, set end counter to 500
  if (sdReady) 
         {
-          char filename[32];
+          
           snprintf(filename, sizeof(filename), "/j_%05lu.jbn",
-                  (unsigned long)(0));
+                  (unsigned long)bin));
 
           // if file already exists, delete it!
           if (SD.exists(filename ) )
@@ -198,19 +203,74 @@ static void RxTask(void *arg) {
             SD.remove(filename);
           }   
 
-          // ,ake headeer, value = 0xbdca, len = jpeg len, then ther jpeg              
+                 
           File file = SD.open(filename, FILE_WRITE);
-
+          if (file)
+            fyleOpen = true;
         }
 
-#endif
 
 
 
 
 
+ for (;;) 
+ {
+    if (xQueueReceive(jpegQueue, &msg, pdMS_TO_TICKS(1000)) == pdTRUE) 
+    {
+
+      if (!using_sd)      
+        ++saved;
+      else
+      {
+
+   
+        bool wrote = true;
+        if (sdReady) 
+        {
 
 
+            // WRITE HEADER
+
+            // write jpeg
+            if (file) 
+            {
+              wrote = (file.write(msg.data, msg.length) == msg.length);
+
+
+            }
+
+
+
+
+          
+          if (saved >= JS_IMAGE_LOOP_MAX)
+            saved = 0;
+
+       
+
+          
+            
+            // flush ram cashe in case of power fail - might lose just this...
+            file.flush();
+           
+          }
+        }
+        if (wrote) ++saved;
+      }
+      
+           
+     // tft.fillRect(82, 0, tft.width() - 82, tft.height(), TFT_BLACK);
+      TJpgDec.drawJpg(128, 34, msg.data, msg.length);
+      free(msg.data);
+      drawStatus(batteryVoltage());
+
+    } else {
+      drawStatus(batteryVoltage());
+    }
+  }
+
+#else
 
 
 
@@ -227,7 +287,7 @@ static void RxTask(void *arg) {
         bool wrote = true;
         if (sdReady) 
         {
-          char filename[32];
+          //char filename[32];
           snprintf(filename, sizeof(filename), "/j_%05lu.jpg",
                   (unsigned long)(saved + 1));
 
@@ -263,6 +323,12 @@ static void RxTask(void *arg) {
       drawStatus(batteryVoltage());
     }
   }
+
+
+#endif
+
+
+  
 }
 
 // Existing SAR state machine, with per-picture malloc and transfer of ownership.
