@@ -23,7 +23,7 @@
 
 #define TFT_BLACK TFT_PURPLE
 #define BOOT_BUTTON 0
-#define USING_BINS  0
+#define USING_BINS  1
 
 
 #ifndef SD_CS
@@ -49,6 +49,7 @@ static uint32_t      piclen    = 0;
 static int           seg       = 0;
 static int           pixState   = 0;
 static uint32_t      saved     = 0;
+static uint32_t      binned    = 0;
 static bool          sdReady   = false;
 static int           myChannel = 0xff   ;
 
@@ -175,90 +176,158 @@ static void drawStatus(float volts) {
   tft.setCursor(4, 300);
   tft.printf("Dropped   : %lu ", (unsigned long)dropped);
   tft.setCursor(4, 310);
-  tft.printf("Pics saved: %lu ", (unsigned long)saved);
+  tft.printf("Pics saved: %lu ", (unsigned long)binned);
 }
 
 
-  uint32_t test_counter     = 0;
-  uint32_t test_end_counter =500;
+  uint32_t test_counter     =  0;
+  uint32_t test_end_counter = 500;
 
+  #define TLV_TYPE_JPEG 0xbd 
+  #define binNdx_MAX   300
+typedef struct tlv_header_t {
+  uint32_t  type = TLV_TYPE_JPEG;
+  uint32_t  len =  0;
+} TLV_HEADER ;
+
+
+File file;
 
 static void RxTask(void *arg) {
   JpegMessage msg;
   char filename[32];
-  int bin = 1;
-  bool fyleOpen = 0;
-
-#if USING_BINS
-  // open the file, set end counter to 500
- if (sdReady) 
-        {
-          
-          snprintf(filename, sizeof(filename), "/j_%05lu.jbn",
-                  (unsigned long)bin));
-
-          // if file already exists, delete it!
-          if (SD.exists(filename ) )
-          {
-            SD.remove(filename);
-          }   
-
-                 
-          File file = SD.open(filename, FILE_WRITE);
-          if (file)
-            fyleOpen = true;
-        }
+  int      bin       = 0;
+  //int      bins      = 0;
+  bool     fyleOpen  = false;
+  int binNdx = 0;
 
 
 
-
-
-
- for (;;) 
- {
-    if (xQueueReceive(jpegQueue, &msg, pdMS_TO_TICKS(1000)) == pdTRUE) 
-    {
-
-      if (!using_sd)      
-        ++saved;
-      else
+  for (;;) 
+  {
+ 
+      if (xQueueReceive(jpegQueue, &msg, pdMS_TO_TICKS(1000)) == pdTRUE)
       {
+        // got a pic. if sd card off or not enabled, just display pic and update status np matter what
+          // we are saving the pic,
+          // if the bin index is 0, we need to open a new bin file
+          // a new bin file needs a new File name,
+          // IT IS REMOVED first IF IT EXISTS         
+          // AND THE FILE OPENED FOR WRITING.
+          // save the pic at the current index  
+          // increment the bin index and finish up the bin if needed
 
-   
-        bool wrote = true;
-        if (sdReady) 
+        TJpgDec.drawJpg(128, 34, msg.data, msg.length);
+
+        // saving current pic
+        if (sdReady && using_sd) 
         {
+          bool wrote = true;
 
+          if (binNdx == 0)
+          {
+              snprintf(filename, sizeof(filename), "/j_%05lu.jbn",
+                      (unsigned long)bin  );
 
-            // WRITE HEADER
-
-            // write jpeg
+              // if file already exists, delete it!
+              if (SD.exists(filename ) )
+              {
+                SD.remove(filename);
+              }   
+                file = SD.open(filename, FILE_WRITE);
+                            if (file)   
+                            {
+                              fyleOpen = true;
+                            }
+          }   
+            
+          TLV_HEADER  header = { TLV_TYPE_JPEG , msg.length} ;
+          
+          // write header and jpeg 
             if (file) 
             {
-              wrote = (file.write(msg.data, msg.length) == msg.length);
-
-
+              wrote = file.write ((uint8_t *)&header, sizeof(header) ) == sizeof(header) ;
+              if (wrote)
+                wrote = (file.write(msg.data, msg.length) == msg.length);
             }
 
-
-
-
+            if ( wrote) {
+                ++binned;
           
-          if (saved >= JS_IMAGE_LOOP_MAX)
-            saved = 0;
-
-       
-
-          
+                binNdx ++;
+            }
             
-            // flush ram cashe in case of power fail - might lose just this...
-            file.flush();
-           
-          }
-        }
-        if (wrote) ++saved;
-      }
+
+              // more bin to fill?
+              // check for bin at MAX
+            if (binNdx >= binNdx_MAX) 
+            {
+              binNdx = 0;
+              // flush
+              // close   
+              file.flush();
+              file.close();
+              ++bin;                              
+            }  
+
+
+        } // saving  
+            free(msg.data);
+
+
+      } // qrx
       
+       
+      
+    
+    drawStatus(batteryVoltage());
+    
+  } // end for
+
+}
+ 
+#if 0
+   {
+
+     
+
+
+
+
+      if (using_sd && fyleOpen == true )      
+      {
+        if (sdReady) 
+        {    
+            // *****************       create and fill HEADER 
+
+         
+
+                    // open next bin filde
+                    
+
+                    snprintf(filename, sizeof(filename), "/j_%05lu.jbn",
+                        (unsigned long)bin  );
+
+                    // re-open
+
+  
+                test_counter = 0;
+                
+
+                }
+              fyleOpen = false;
+    
+             
+                fyleOpen = false;
+              }
+              else           
+                // flush ram cashe in case of power fail - might lose just this...
+                file.flush();          
+          
+        }
+        
+      }
+     
            
      // tft.fillRect(82, 0, tft.width() - 82, tft.height(), TFT_BLACK);
       TJpgDec.drawJpg(128, 34, msg.data, msg.length);
@@ -270,7 +339,7 @@ static void RxTask(void *arg) {
     }
   }
 
-#else
+
 
 
 
@@ -325,11 +394,11 @@ static void RxTask(void *arg) {
   }
 
 
-#endif
 
 
   
 }
+#endif
 
 // Existing SAR state machine, with per-picture malloc and transfer of ownership.
 // Only basic packet-length and allocation-bound guards have been added.
@@ -363,8 +432,10 @@ void OnDataRecv(const esp_now_recv_info_t *rcv_info,
       }
       break;
     case 1:
+
       if (newpixState == JS_SAR_STATE_MID ||
           newpixState == JS_SAR_STATE_END) {
+ #if 1
         const size_t allocLen = ((size_t(piclen) + 217) / 218) * 218;
         const size_t nextOffset = size_t(seg + 1) * 218;
         if (len < (int)(SAR_HEADER + SAR_PAYLOAD) ||
@@ -375,6 +446,7 @@ void OnDataRecv(const esp_now_recv_info_t *rcv_info,
           ++dropped;
           break;
         }
+#endif
         ++seg;
         memcpy(rxBuff + (seg * 218), &inBytes[32], 218);
         if (newpixState == JS_SAR_STATE_END) {
