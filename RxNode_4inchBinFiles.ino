@@ -54,7 +54,7 @@ static bool          sdReady   = false;
 static int           myChannel = 0xff   ;
 
 
-
+static int      bin       = 0;
 
 bool using_sd =false;
 static void serviceBootButton()
@@ -159,9 +159,14 @@ static void drawStatus(float volts) {
   tft.setTextFont(1);
   tft.setCursor(4, 190);
   tft.printf("Volts:%.2f ", volts);
+
+  tft.setCursor(4, 200);
+  tft.printf("bins  :%lu ", bin+1);
+  
   tft.setCursor(4, 210);
   tft.printf("Boots:%lu"  , booted);
 
+ 
   // rx stats
   tft.setTextFont(2);
   tft.setCursor(4, 250);
@@ -184,7 +189,9 @@ static void drawStatus(float volts) {
   uint32_t test_end_counter = 500;
 
   #define TLV_TYPE_JPEG 0xbd 
-  #define binNdx_MAX   300
+  #define binNdx_MAX   5000
+
+
 typedef struct tlv_header_t {
   uint32_t  type = TLV_TYPE_JPEG;
   uint32_t  len =  0;
@@ -196,7 +203,7 @@ File file;
 static void RxTask(void *arg) {
   JpegMessage msg;
   char filename[32];
-  int      bin       = 0;
+
   //int      bins      = 0;
   bool     fyleOpen  = false;
   int binNdx = 0;
@@ -270,135 +277,18 @@ static void RxTask(void *arg) {
               ++bin;                              
             }  
 
-
         } // saving  
             free(msg.data);
 
-
       } // qrx
-      
-       
-      
-    
+              
     drawStatus(batteryVoltage());
     
   } // end for
 
 }
  
-#if 0
-   {
 
-     
-
-
-
-
-      if (using_sd && fyleOpen == true )      
-      {
-        if (sdReady) 
-        {    
-            // *****************       create and fill HEADER 
-
-         
-
-                    // open next bin filde
-                    
-
-                    snprintf(filename, sizeof(filename), "/j_%05lu.jbn",
-                        (unsigned long)bin  );
-
-                    // re-open
-
-  
-                test_counter = 0;
-                
-
-                }
-              fyleOpen = false;
-    
-             
-                fyleOpen = false;
-              }
-              else           
-                // flush ram cashe in case of power fail - might lose just this...
-                file.flush();          
-          
-        }
-        
-      }
-     
-           
-     // tft.fillRect(82, 0, tft.width() - 82, tft.height(), TFT_BLACK);
-      TJpgDec.drawJpg(128, 34, msg.data, msg.length);
-      free(msg.data);
-      drawStatus(batteryVoltage());
-
-    } else {
-      drawStatus(batteryVoltage());
-    }
-  }
-
-
-
-
-
-  for (;;) {
-    if (xQueueReceive(jpegQueue, &msg, pdMS_TO_TICKS(1000)) == pdTRUE) 
-    {
-
-      if (!using_sd)      
-        ++saved;
-      else
-      {
-
-   
-        bool wrote = true;
-        if (sdReady) 
-        {
-          //char filename[32];
-          snprintf(filename, sizeof(filename), "/j_%05lu.jpg",
-                  (unsigned long)(saved + 1));
-
-          if (saved >= JS_IMAGE_LOOP_MAX)
-            saved = 0;
-
-          // if file already exists, delete it!
-          if (SD.exists(filename ) )
-          {
-            SD.remove(filename);
-          }                 
-          File file = SD.open(filename, FILE_WRITE);
-
-          if (file) 
-          {
-            wrote = (file.write(msg.data, msg.length) == msg.length);
-            
-            // flush ram cashe in case of power fail - might lose just this...
-            file.flush();
-            file.close();
-          }
-        }
-        if (wrote) ++saved;
-      }
-      
-           
-     // tft.fillRect(82, 0, tft.width() - 82, tft.height(), TFT_BLACK);
-      TJpgDec.drawJpg(128, 34, msg.data, msg.length);
-      free(msg.data);
-      drawStatus(batteryVoltage());
-
-    } else {
-      drawStatus(batteryVoltage());
-    }
-  }
-
-
-
-
-  
-}
-#endif
 
 // Existing SAR state machine, with per-picture malloc and transfer of ownership.
 // Only basic packet-length and allocation-bound guards have been added.
