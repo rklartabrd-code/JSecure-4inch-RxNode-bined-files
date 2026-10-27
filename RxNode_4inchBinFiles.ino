@@ -160,13 +160,14 @@ static void drawStatus(float volts) {
   tft.printf("Volts :%.2f ", volts);
 
   tft.setCursor(4, 200);
+  tft.printf("Boots :%lu "  , booted);
+  tft.setCursor(4, 210);
+
   tft.printf("bins  :%lu ", bin+1);
   
-  tft.setCursor(4, 210);
-  tft.printf("Bin Ndx:  :%lu "  , binNdx);
-
   tft.setCursor(4, 220);
-  tft.printf("Boots  :%lu "  , booted);
+  tft.printf("Index :%lu ", binNdx);
+  
 
  
   // rx stats
@@ -419,7 +420,7 @@ WiFi.STA.begin();
 
 
 
-  esp_now_register_recv_cb(OnDataRecv);
+ 
 }
 
 void setup() {
@@ -450,7 +451,7 @@ void setup() {
   drawStatus(batteryVoltage());
 
 
-  setupRadio();
+  setupRadio(); esp_now_register_recv_cb(OnDataRecv);
 }
 
 void loop() {  serviceBootButton(); delay(100); }
