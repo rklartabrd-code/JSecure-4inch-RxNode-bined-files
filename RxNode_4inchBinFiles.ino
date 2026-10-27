@@ -47,14 +47,14 @@ static QueueHandle_t jpegQueue = nullptr;
 static uint8_t       *rxBuff   = nullptr;
 static uint32_t      piclen    = 0;
 static int           seg       = 0;
-static int           pixState   = 0;
+static int           pixState  = 0;
 static uint32_t      saved     = 0;
 static uint32_t      binned    = 0;
 static bool          sdReady   = false;
 static int           myChannel = 0xff   ;
-
-
-static int      bin       = 0;
+static bool         fyleOpen    = false;
+static int          binNdx      = 0;
+static int          bin         = 0;
 
 bool using_sd =false;
 static void serviceBootButton()
@@ -158,13 +158,16 @@ static void drawStatus(float volts) {
 
   tft.setTextFont(1);
   tft.setCursor(4, 190);
-  tft.printf("Volts:%.2f ", volts);
+  tft.printf("Volts :%.2f ", volts);
 
   tft.setCursor(4, 200);
   tft.printf("bins  :%lu ", bin+1);
   
-  tft.setCursor(4, 210);
-  tft.printf("Boots:%lu"  , booted);
+  tft.setCursor(4, 220);
+  tft.printf("Bin Ndx:  :%lu "  , binNdx);
+
+  tft.setCursor(4, 220);
+  tft.printf("Boots  :%lu "  , booted);
 
  
   // rx stats
@@ -204,10 +207,7 @@ static void RxTask(void *arg) {
   JpegMessage msg;
   char filename[32];
 
-  //int      bins      = 0;
-  bool     fyleOpen  = false;
-  int binNdx = 0;
-
+ 
 
 
   for (;;) 
@@ -229,28 +229,29 @@ static void RxTask(void *arg) {
         // saving current pic
         if (sdReady && using_sd) 
         {
-          bool wrote = true;
+            bool wrote = true;
 
-          if (binNdx == 0)
-          {
-              snprintf(filename, sizeof(filename), "/j_%05lu.jbn",
-                      (unsigned long)bin  );
+            if (binNdx == 0)
+            {
+                snprintf(filename, sizeof(filename), "/j_%05lu.jbn",
+                        (unsigned long)bin  );
 
-              // if file already exists, delete it!
-              if (SD.exists(filename ) )
-              {
-                SD.remove(filename);
-              }   
-                file = SD.open(filename, FILE_WRITE);
-                            if (file)   
-                            {
-                              fyleOpen = true;
-                            }
-          }   
+                // if file already exists, delete it!
+                if (SD.exists(filename ) )
+                {
+                  SD.remove(filename);
+                }   
+                  file = SD.open(filename, FILE_WRITE);
+                              if (file)   
+                              {
+                                fyleOpen = true;
+                              }
+            }   
             
-          TLV_HEADER  header = { TLV_TYPE_JPEG , msg.length} ;
-          
-          // write header and jpeg 
+              
+            TLV_HEADER  header = { TLV_TYPE_JPEG , msg.length} ;
+            
+            // write header and jpeg 
             if (file) 
             {
               wrote = file.write ((uint8_t *)&header, sizeof(header) ) == sizeof(header) ;
@@ -258,12 +259,13 @@ static void RxTask(void *arg) {
                 wrote = (file.write(msg.data, msg.length) == msg.length);
             }
 
-            if ( wrote) {
+            if ( wrote) 
+            {
                 ++binned;
           
                 binNdx ++;
             }
-            
+          
 
               // more bin to fill?
               // check for bin at MAX
@@ -277,8 +279,9 @@ static void RxTask(void *arg) {
               ++bin;                              
             }  
 
+
         } // saving  
-            free(msg.data);
+              free(msg.data);
 
       } // qrx
               
@@ -286,7 +289,7 @@ static void RxTask(void *arg) {
     
   } // end for
 
-}
+} // end task
  
 
 
