@@ -1,12 +1,11 @@
 /*
- * 4-inch CYD RxNode: single-screen JPEG receiver
+ * 4-inch CYD RxNode: single-screen JSecure JPEG receiver
  *
- * REQUIRED INTEGRATION:
- * 1. Include your existing jNowMessage_t and jNOW/JS constants below.
- * 2. Paste your existing ESP-NOW initialization (peer/channel/security) into
- *    setupRadio(), and set myPeer to the sender MAC.
- * 3. Set SD_CS to the SD chip-select used by your working board setup.
- * 4. Keep your working TFT_eSPI User_Setup (ST7796 driver).
+ * stores tlv encoded jpeg blobs in an always open file. 
+ * the jpeg and tlv heder is appended
+ * each file is a bin. after a bin is filled, it creates a new bin file
+ * up to BIN_MAX bins are allowed
+ * 5000 jpegs/ bin is testing now
  *
  * Uses Arduino-ESP32 3.x callback signature, TFT_eSPI, TJpg_Decoder.
  */
@@ -163,7 +162,7 @@ static void drawStatus(float volts) {
   tft.setCursor(4, 200);
   tft.printf("bins  :%lu ", bin+1);
   
-  tft.setCursor(4, 220);
+  tft.setCursor(4, 210);
   tft.printf("Bin Ndx:  :%lu "  , binNdx);
 
   tft.setCursor(4, 220);
